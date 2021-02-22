@@ -5,34 +5,14 @@ import io from 'socket.io-client'
 class Board extends React.Component{
 
     timeout;
+    // socket = io.connect('http://localhost:5001')
     socket = io.connect('https://whiteboard-chou.herokuapp.com/')
     ctx;
     isDrawing = false;
-
-    constructor(props){
+    move = false;
+    constructor(props) {
         super(props);
-
-        this.socket.on("canvas-data", function(data){
-            var root = this
-            var interval = setInterval(function(){
-                if(root.isDrawing){
-                    return
-                }
-                root.isDrawing = true;
-                clearInterval(interval);
-                var image = new Image();
-                var canvas = document.querySelector("#board");
-                var ctx = canvas.getContext('2d');
-                image.onload = function(){
-                    ctx.drawImage(image, 0, 0);
-
-                    root.isDrawing = false;
-                }
-                image.src = data;
-            },200)
-        })
     }
-
     componentDidMount(){
         this.drawOnCanvas();
     }
@@ -45,6 +25,7 @@ class Board extends React.Component{
     
 
     drawOnCanvas(){
+        
         let canvas = document.querySelector("#board");
         this.ctx = canvas.getContext('2d');
         let ctx = this.ctx
@@ -56,7 +37,8 @@ class Board extends React.Component{
     
         var mouse = {x: 0, y: 0};
         var last_mouse = {x: 0, y: 0};
-    
+        var root = this;
+        
         /* Mouse Capturing Work */
         canvas.addEventListener('mousemove', function(e) {
             last_mouse.x = mouse.x;
@@ -68,10 +50,8 @@ class Board extends React.Component{
     
     
         /* Drawing on Paint App */
-        ctx.lineWidth = this.props.size;
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
-        ctx.strokeStyle = this.props.color;
     
         canvas.addEventListener('mousedown', function(e) {
             canvas.addEventListener('mousemove', onPaint, false);
@@ -81,23 +61,32 @@ class Board extends React.Component{
             canvas.removeEventListener('mousemove', onPaint, false);
         }, false);
         
-        var root = this;
+        // var root = this;
+
 
         var onPaint = function() {
+           
             ctx.beginPath();
             ctx.moveTo(last_mouse.x, last_mouse.y);
             ctx.lineTo(mouse.x, mouse.y);
-            ctx.closePath();
             ctx.stroke();
-
-            if(root.timeout != undefined){
-                clearTimeout(root.timeout)
-            }
-            root.timeout = setTimeout( function(){
-                var base64ImageData = canvas.toDataURL('image/png')
-                root.socket.emit("canvas-data", base64ImageData)
-            },1000)
+            root.socket.emit("canvas-data",{line: [ mouse, last_mouse ], color:ctx.strokeStyle, size:ctx.lineWidth})
+            last_mouse = {x:mouse.x, y:mouse.y}
         };
+        this.socket.on('canvas-data', function (data) {
+            var line = data.line;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.lineWidth = data.size;
+            ctx.strokeStyle = data.color;
+
+            ctx.beginPath();
+            ctx.moveTo(line[0].x , line[0].y);
+            ctx.lineTo(line[1].x , line[1].y);
+            ctx.stroke();
+         });
+        
+        
     
     }
 
